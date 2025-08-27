@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Feedback Form</title>
+  <link rel="stylesheet" href="../static/style.css">
+</head>
+<body>
+  <div class="container">
+    <form id="feedbackForm">
+      <h2>🌟 Share Your Feedback</h2>
+      <input type="text" name="name" placeholder="👤 Your Name" required>
+      <input type="email" name="email" placeholder="📧 Your Email" required>
+      <textarea name="message" rows="4" placeholder="💬 Your Feedback" required></textarea>
+      
+      <h3 style="text-align:center; margin-top:15px;">Rate Us</h3>
+      <div class="stars">
+        <input type="radio" id="star5" name="rating" value="5"><label for="star5">★</label>
+        <input type="radio" id="star4" name="rating" value="4"><label for="star4">★</label>
+        <input type="radio" id="star3" name="rating" value="3"><label for="star3">★</label>
+        <input type="radio" id="star2" name="rating" value="2"><label for="star2">★</label>
+        <input type="radio" id="star1" name="rating" value="1" required><label for="star1">★</label>
+      </div>
+
+      <button type="submit">🚀 Submit Feedback</button>
+    </form>
+  </div>
+
+  <!-- Popup Modal -->
+  <div id="popup" class="popup">
+    <div class="popup-content">
+      <h2>✅ Thank you for your feedback!</h2>
+      <button onclick="closePopup()">Close</button>
+    </div>
+  </div>
+
+  <script>
+    const form = document.getElementById("feedbackForm");
+    form.addEventListener("submit", async function(e) {
+      e.preventDefault();
+      const formData = new FormData(form);
+      const response = await fetch("/feedback", {
+        method: "POST",
+        body: formData
+      });
+      const result = await response.json();
+      if (result.status === "success") {
+        document.getElementById("popup").style.display = "flex";
+        form.reset();
+      }
+    });
+
+    function closePopup() {
+      document.getElementById("popup").style.display = "none";
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Feedback Chart</title>
+  <link rel="stylesheet" href="../static/style.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+  <div class="container" id="chart-container">
+    <h2>📊 Live Feedback Ratings</h2>
+    <canvas id="ratingChart"></canvas>
+    <a href="/logout" style="display:block; margin-top:20px; text-align:center; color:#667eea; text-decoration:none;">🚪 Logout</a>
+  </div>
+
+  <script>
+    const ctx = document.getElementById('ratingChart').getContext('2d');
+    const chart = new Chart(ctx, {
+      type: 'pie',
+      data: {
+        labels: ['1 ⭐', '2 ⭐', '3 ⭐', '4 ⭐', '5 ⭐'],
+        datasets: [{
+          label: 'Ratings',
+          data: [0,0,0,0,0], // placeholder
+          backgroundColor: ['#ff4d4d', '#ff944d', '#ffd11a', '#99e600', '#4dff88']
+        }]
+      },
+      options: {
+        responsive: true,
+        plugins: {
+          legend: { position: 'bottom' }
+        }
+      }
+    });
+
+    async function fetchData() {
+      const response = await fetch("/chart-data");
+      if (response.ok) {
+        const data = await response.json();
+        chart.data.datasets[0].data = data;
+        chart.update();
+      }
+    }
+
+    // Fetch every 3 seconds
+    setInterval(fetchData, 3000);
+    // Fetch immediately on page load
+    fetchData();
+  </script>
+</body>
+</html>
