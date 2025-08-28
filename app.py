@@ -1,7 +1,8 @@
 from flask import Flask, render_template, request, jsonify, session, redirect, url_for, send_file
-import os, csv, sqlite3
+from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime
 from collections import Counter
+import os, csv
 
 app = Flask(__name__)
 app.secret_key = "supersecretkey_change_me"
@@ -10,42 +11,43 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DB_FILE = os.path.join(BASE_DIR, "feedback.db")
 ADMIN_PASSWORD = "admin123"
 
-# ---------- DB SETUP ----------
-def init_db():
-    conn = sqlite3.connect(DB_FILE)
-    c = conn.cursor()
-    c.execute("""
-        CREATE TABLE IF NOT EXISTS feedback (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT,
-            email TEXT,
-            message TEXT,
-            rating INTEGER,
-            date TEXT
-        )
-    """)
-    conn.commit()
-    conn.close()
+# ---------- SQLAlchemy Setup ----------
+app.config["SQLALCHEMY_DATABASE_URI"] = f"sqlite:///{DB_FILE}"
+app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+db = SQLAlchemy(app)
 
-init_db()
+# ---------- Models ----------
+class Feedback(db.Model):
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    name = db.Column(db.String(100))
+    email = db.Column(db.String(120))
+    message = db.Column(db.Text)
+    rating = db.Column(db.Integer)
+    date = db.Column(db.String(50))   # ISO string stored
 
+# Create tables
+with app.app_context():
+    db.create_all()
+
+# ---------- DB Functions ----------
 def insert_feedback(fb):
-    conn = sqlite3.connect(DB_FILE)
-    c = conn.cursor()
-    c.execute("INSERT INTO feedback (name,email,message,rating,date) VALUES (?,?,?,?,?)",
-              (fb["name"], fb["email"], fb["message"], fb["rating"], fb["date"]))
-    conn.commit()
-    conn.close()
+    feedback = Feedback(
+        name=fb["name"],
+        email=fb["email"],
+        message=fb["message"],
+        rating=fb["rating"],
+        date=fb["date"]
+    )
+    db.session.add(feedback)
+    db.session.commit()
 
 def read_feedback():
-    conn = sqlite3.connect(DB_FILE)
-    c = conn.cursor()
-    c.execute("SELECT name,email,message,rating,date FROM feedback")
-    rows = c.fetchall()
-    conn.close()
-
-    ratings = [r[3] for r in rows]
-    entries = [{"name": r[0], "email": r[1], "message": r[2], "rating": r[3], "date": r[4]} for r in rows]
+    rows = Feedback.query.all()
+    ratings = [r.rating for r in rows]
+    entries = [
+        {"name": r.name, "email": r.email, "message": r.message, "rating": r.rating, "date": r.date}
+        for r in rows
+    ]
     return ratings, entries
 
 # ---------- PUBLIC ----------
@@ -62,10 +64,7 @@ def feedback():
         "rating": int(request.form.get('rating', 0)),
         "date": datetime.now().isoformat(timespec="seconds")
     }
-
-    # Save in SQLite DB only
     insert_feedback(fb)
-
     return jsonify({"status": "success", "message": "Thank you for your feedback!"})
 
 # ---------- ADMIN LOGIN ----------
