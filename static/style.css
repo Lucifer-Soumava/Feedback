@@ -231,3 +231,17 @@ input:checked + .slider:before {
   align-items:center;
   margin-bottom:10px;
 }
+/* Footer Box */
+.footer-box {
+  position: fixed;
+  bottom: 12px;
+  right: 12px;
+  background: rgba(255, 255, 255, 0.8);
+  padding: 8px 14px;
+  border-radius: 12px;
+  font-size: 0.9em;
+  font-weight: 600;
+  color: #4a47a3;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  backdrop-filter: blur(6px);
+}
