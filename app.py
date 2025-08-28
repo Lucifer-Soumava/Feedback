@@ -1,32 +1,70 @@
-from flask import Flask, render_template, request, jsonify, session, redirect, url_for
-import json, os
+from flask import Flask, render_template, request, jsonify, session, redirect, url_for, send_file
+import os, csv, sqlite3
 from datetime import datetime
 from collections import Counter
 
 app = Flask(__name__)
-app.secret_key = "supersecretkey"  # change this to something strong
+app.secret_key = "supersecretkey_change_me"
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-FEEDBACK_FILE = os.path.join(BASE_DIR, "feedback.json")
+DB_FILE = os.path.join(BASE_DIR, "feedback.db")
+ADMIN_PASSWORD = "admin123"
 
-ADMIN_PASSWORD = "admin123"  # change for security
+# ---------- DB SETUP ----------
+def init_db():
+    conn = sqlite3.connect(DB_FILE)
+    c = conn.cursor()
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS feedback (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT,
+            email TEXT,
+            message TEXT,
+            rating INTEGER,
+            date TEXT
+        )
+    """)
+    conn.commit()
+    conn.close()
 
+init_db()
+
+def insert_feedback(fb):
+    conn = sqlite3.connect(DB_FILE)
+    c = conn.cursor()
+    c.execute("INSERT INTO feedback (name,email,message,rating,date) VALUES (?,?,?,?,?)",
+              (fb["name"], fb["email"], fb["message"], fb["rating"], fb["date"]))
+    conn.commit()
+    conn.close()
+
+def read_feedback():
+    conn = sqlite3.connect(DB_FILE)
+    c = conn.cursor()
+    c.execute("SELECT name,email,message,rating,date FROM feedback")
+    rows = c.fetchall()
+    conn.close()
+
+    ratings = [r[3] for r in rows]
+    entries = [{"name": r[0], "email": r[1], "message": r[2], "rating": r[3], "date": r[4]} for r in rows]
+    return ratings, entries
+
+# ---------- PUBLIC ----------
 @app.route('/')
 def index():
     return render_template('index.html')
 
 @app.route('/feedback', methods=['POST'])
 def feedback():
-    feedback_data = {
-        "name": request.form['name'],
-        "email": request.form['email'],
-        "message": request.form['message'],
-        "rating": int(request.form['rating']),
-        "date": datetime.now().isoformat()
+    fb = {
+        "name": request.form.get('name', '').strip(),
+        "email": request.form.get('email', '').strip(),
+        "message": request.form.get('message', '').strip(),
+        "rating": int(request.form.get('rating', 0)),
+        "date": datetime.now().isoformat(timespec="seconds")
     }
 
-    with open(FEEDBACK_FILE, "a") as f:
-        f.write(json.dumps(feedback_data) + "\n")
+    # Save in SQLite DB only
+    insert_feedback(fb)
 
     return jsonify({"status": "success", "message": "Thank you for your feedback!"})
 
@@ -34,12 +72,10 @@ def feedback():
 @app.route('/admin', methods=['GET', 'POST'])
 def admin_login():
     if request.method == 'POST':
-        password = request.form['password']
-        if password == ADMIN_PASSWORD:
+        if request.form.get('password') == ADMIN_PASSWORD:
             session['admin'] = True
             return redirect(url_for('chart'))
-        else:
-            return render_template('admin.html', error="❌ Wrong password")
+        return render_template('admin.html', error="❌ Wrong password")
     return render_template('admin.html')
 
 @app.route('/logout')
@@ -47,33 +83,42 @@ def logout():
     session.pop('admin', None)
     return redirect(url_for('admin_login'))
 
-# ---------- PROTECTED CHART ----------
+def require_admin():
+    return session.get('admin') is True
+
+# ---------- ADMIN: CHART ----------
 @app.route('/chart')
 def chart():
-    if not session.get('admin'):
+    if not require_admin():
         return redirect(url_for('admin_login'))
-    return render_template('chart.html')
+    ratings, _ = read_feedback()
+    avg = round(sum(ratings) / len(ratings), 2) if ratings else 0
+    return render_template('chart.html', initial_avg=avg)
 
-# ---------- LIVE CHART DATA ----------
 @app.route('/chart-data')
 def chart_data():
-    if not session.get('admin'):
+    if not require_admin():
         return jsonify({"error": "unauthorized"}), 403
-
-    ratings = []
-    if os.path.exists(FEEDBACK_FILE):
-        with open(FEEDBACK_FILE, "r") as f:
-            for line in f:
-                try:
-                    feedback = json.loads(line.strip())
-                    ratings.append(feedback.get("rating", 0))
-                except:
-                    pass
-
+    ratings, _ = read_feedback()
     count = Counter(ratings)
-    chart_data = [count.get(1,0), count.get(2,0), count.get(3,0), count.get(4,0), count.get(5,0)]
+    buckets = [count.get(1,0), count.get(2,0), count.get(3,0), count.get(4,0), count.get(5,0)]
+    total = sum(buckets)
+    avg = round((1*buckets[0] + 2*buckets[1] + 3*buckets[2] + 4*buckets[3] + 5*buckets[4]) / total, 2) if total else 0
+    return jsonify({"buckets": buckets, "average": avg, "total": total})
 
-    return jsonify(chart_data)
+# ---------- ADMIN: DOWNLOAD CSV ----------
+@app.route('/download-feedback')
+def download_feedback():
+    if not require_admin():
+        return redirect(url_for('admin_login'))
+    csv_path = os.path.join(BASE_DIR, "feedback_export.csv")
+    _, entries = read_feedback()
+    with open(csv_path, "w", newline="", encoding="utf-8") as f_out:
+        writer = csv.writer(f_out)
+        writer.writerow(["Name", "Email", "Message", "Rating", "Date"])
+        for fb in entries:
+            writer.writerow([fb["name"], fb["email"], fb["message"], fb["rating"], fb["date"]])
+    return send_file(csv_path, as_attachment=True)
 
 if __name__ == '__main__':
     app.run(host="0.0.0.0", port=5000, debug=True)

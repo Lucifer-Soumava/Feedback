@@ -1,51 +1,57 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
+  <meta charset="UTF-8" />
   <title>Feedback Chart</title>
-  <link rel="stylesheet" href="../static/style.css">
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
   <div class="container" id="chart-container">
     <h2>📊 Live Feedback Ratings</h2>
+    <p id="avgLine" style="text-align:center; font-size:1.1em; margin:6px 0 4px;">
+      ⭐ Average Rating: <strong id="avgVal">{{ initial_avg }}</strong> / 5
+    </p>
     <canvas id="ratingChart"></canvas>
-    <a href="/logout" style="display:block; margin-top:20px; text-align:center; color:#667eea; text-decoration:none;">🚪 Logout</a>
+
+    <div class="center-actions" style="margin-top:16px;">
+      <a href="/download-feedback"><button>📥 Download Feedback (CSV)</button></a>
+      <a href="/logout"><button>🚪 Logout</button></a>
+    </div>
   </div>
 
   <script>
-    const ctx = document.getElementById('ratingChart').getContext('2d');
+    const ctx = document.getElementById("ratingChart").getContext("2d");
     const chart = new Chart(ctx, {
-      type: 'pie',
+      type: "pie",
       data: {
-        labels: ['1 ⭐', '2 ⭐', '3 ⭐', '4 ⭐', '5 ⭐'],
+        labels: ["1 ⭐", "2 ⭐", "3 ⭐", "4 ⭐", "5 ⭐"],
         datasets: [{
-          label: 'Ratings',
-          data: [0,0,0,0,0], // placeholder
-          backgroundColor: ['#ff4d4d', '#ff944d', '#ffd11a', '#99e600', '#4dff88']
+          label: "Ratings",
+          data: [0, 0, 0, 0, 0],
+          backgroundColor: ["#ff4d4d", "#ff944d", "#ffd11a", "#99e600", "#4dff88"]
         }]
       },
       options: {
         responsive: true,
-        plugins: {
-          legend: { position: 'bottom' }
-        }
+        plugins: { legend: { position: "bottom" } }
       }
     });
 
-    async function fetchData() {
-      const response = await fetch("/chart-data");
-      if (response.ok) {
-        const data = await response.json();
-        chart.data.datasets[0].data = data;
-        chart.update();
-      }
+    async function refreshChart() {
+      const res = await fetch("/chart-data");
+      if (!res.ok) return;
+      const { buckets, average } = await res.json();
+      chart.data.datasets[0].data = buckets;
+      chart.update();
+
+      // Update average
+      document.getElementById("avgVal").textContent = average;
     }
 
-    // Fetch every 3 seconds
-    setInterval(fetchData, 3000);
-    // Fetch immediately on page load
-    fetchData();
+    // Initial + periodic refresh (every 3s)
+    refreshChart();
+    setInterval(refreshChart, 3000);
   </script>
 </body>
 </html>
