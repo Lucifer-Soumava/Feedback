@@ -2,17 +2,46 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Feedback Chart</title>
+  <title>Feedback Dashboard</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
-  <div class="container" id="chart-container">
-    <h2>📊 Live Feedback Ratings</h2>
-    <p id="avgLine" style="text-align:center; font-size:1.1em; margin:6px 0 4px;">
-      ⭐ Average Rating: <strong id="avgVal">{{ initial_avg }}</strong> / 5
-    </p>
-    <canvas id="ratingChart"></canvas>
+  <div class="container dashboard">
+    <h2>📊 Feedback Dashboard</h2>
+
+    <!-- Dark Mode Toggle -->
+    <div class="toggle-container">
+      <label class="switch">
+        <input type="checkbox" id="darkToggle" />
+        <span class="slider round"></span>
+      </label>
+      <span style="margin-left:8px;">Dark Mode</span>
+    </div>
+
+    <!-- Info Cards -->
+    <div class="cards">
+      <div class="card">
+        <h3>📝 Total Feedbacks</h3>
+        <p id="totalVal">0</p>
+      </div>
+      <div class="card">
+        <h3>⭐ Average Rating</h3>
+        <p id="avgVal">{{ initial_avg }}</p>
+      </div>
+      <div class="card">
+        <h3>🕒 Latest Feedback</h3>
+        <p id="latestVal">—</p>
+      </div>
+    </div>
+
+    <!-- Charts -->
+    <div class="charts">
+      <div class="chart-box">
+        <h3>Rating Distribution</h3>
+        <canvas id="ratingChart"></canvas>
+      </div>
+    </div>
 
     <div class="center-actions" style="margin-top:16px;">
       <a href="/download-feedback"><button>📥 Download Feedback (CSV)</button></a>
@@ -21,37 +50,45 @@
   </div>
 
   <script>
-    const ctx = document.getElementById("ratingChart").getContext("2d");
-    const chart = new Chart(ctx, {
+    const pieCtx = document.getElementById("ratingChart").getContext("2d");
+
+    // Pie Chart
+    const pieChart = new Chart(pieCtx, {
       type: "pie",
       data: {
         labels: ["1 ⭐", "2 ⭐", "3 ⭐", "4 ⭐", "5 ⭐"],
         datasets: [{
-          label: "Ratings",
-          data: [0, 0, 0, 0, 0],
-          backgroundColor: ["#ff4d4d", "#ff944d", "#ffd11a", "#99e600", "#4dff88"]
+          data: [0,0,0,0,0],
+          backgroundColor: ["#ff4d4d","#ff944d","#ffd11a","#99e600","#4dff88"]
         }]
       },
-      options: {
-        responsive: true,
-        plugins: { legend: { position: "bottom" } }
-      }
+      options: { responsive: true, plugins:{legend:{position:"bottom"}} }
     });
 
-    async function refreshChart() {
+    // Refresh data
+    async function refreshDashboard() {
       const res = await fetch("/chart-data");
       if (!res.ok) return;
-      const { buckets, average } = await res.json();
-      chart.data.datasets[0].data = buckets;
-      chart.update();
+      const { buckets, average, total, latest } = await res.json();
 
-      // Update average
+      // Update pie
+      pieChart.data.datasets[0].data = buckets;
+      pieChart.update();
+
+      // Update cards
       document.getElementById("avgVal").textContent = average;
+      document.getElementById("totalVal").textContent = total;
+      document.getElementById("latestVal").textContent = latest || "—";
     }
 
-    // Initial + periodic refresh (every 3s)
-    refreshChart();
-    setInterval(refreshChart, 3000);
+    refreshDashboard();
+    setInterval(refreshDashboard, 3000);
+
+    // Dark Mode
+    const toggle = document.getElementById("darkToggle");
+    toggle.addEventListener("change", () => {
+      document.body.classList.toggle("dark", toggle.checked);
+    });
   </script>
 </body>
 </html>

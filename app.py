@@ -99,12 +99,13 @@ def chart():
 def chart_data():
     if not require_admin():
         return jsonify({"error": "unauthorized"}), 403
-    ratings, _ = read_feedback()
+    ratings, entries = read_feedback()
     count = Counter(ratings)
     buckets = [count.get(1,0), count.get(2,0), count.get(3,0), count.get(4,0), count.get(5,0)]
     total = sum(buckets)
-    avg = round((1*buckets[0] + 2*buckets[1] + 3*buckets[2] + 4*buckets[3] + 5*buckets[4]) / total, 2) if total else 0
-    return jsonify({"buckets": buckets, "average": avg, "total": total})
+    avg = round(sum(ratings)/total, 2) if total else 0
+    latest = entries[-1]["message"] if entries else None
+    return jsonify({"buckets": buckets, "average": avg, "total": total, "latest": latest})
 
 # ---------- ADMIN: DOWNLOAD CSV ----------
 @app.route('/download-feedback')
